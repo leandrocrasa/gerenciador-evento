@@ -27,7 +27,7 @@
         .btn-delete { background: none; border: none; color: var(--danger); font-size: 13px; font-weight: bold; cursor: pointer; padding: 5px; border-radius: 4px; }
         .btn-delete:hover { background: #FEE2E2; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 500px; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
         .form-group input, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #D1D5DB; border-radius: 4px; }
@@ -36,7 +36,7 @@
         .client-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #E5E7EB; }
         .btn-action { background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
         .btn-print { background: var(--success); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
-        #reader { width: 100%; max-width: 500px; margin: 0 auto; background: white; }
+        #reader { width: 100%; max-width: 450px; margin: 0 auto; background: white; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
         #voucherCanvas { display: none; }
         .loading { text-align: center; color: gray; padding: 20px; font-style: italic; }
     </style>
@@ -65,7 +65,7 @@
             <div id="voucher-clientes-secao" style="display:none;">
                 <button onclick="voltarEventosVoucher()" style="margin-bottom:15px; padding:6px 12px; background:#E5E7EB; border:none; border-radius:4px; cursor:pointer;">⬅ Voltar aos Eventos</button>
                 <h3 id="voucher-evento-titulo" style="margin-bottom: 10px;">Clientes</h3>
-                <div id="loading-clientes" class="loading" style="display:none;">Buscando lista de convidados no Google Sheets...</div>
+                <div id="loading-clientes" class="loading" style="display:none;">Buscando lista de convidados...</div>
                 <div id="lista-clientes-voucher" class="client-list"></div>
             </div>
         </div>
@@ -73,9 +73,8 @@
         <div id="leitor" class="tab-content">
             <h2>Validar Presença (Portaria)</h2>
             <div style="text-align: center; margin-top: 20px;">
-                <button class="btn-submit" style="max-width: 250px; margin-bottom:20px;" onclick="startScanner()">Ativar Câmera de Leitura</button>
-                <div id="reader"></div>
-                <h2 id="leitor-resultado" style="margin-top:20px;"></h2>
+                <div id="reader" style="margin-bottom: 20px;"></div>
+                <h2 id="leitor-resultado" style="margin-top:20px;">Câmera pronta para escanear.</h2>
             </div>
         </div>
 
@@ -103,15 +102,23 @@
                 <input type="text" id="evt-nome" placeholder="Ex: Casamento de Maria & João"> 
             </div>
             <div class="form-group"> 
-                <label>Link Completo da Planilha Google do Evento</label> 
+                <label>Link Completo da Planilha Google</label> 
                 <input type="text" id="evt-sheets" placeholder="https://docs.google.com/spreadsheets/... "> 
             </div>
+            
+            <div class="form-group" style="background: #F9FAFB; padding: 10px; border-radius: 6px; border: 1px dashed #D1D5DB;"> 
+                <label style="font-weight: bold; color: var(--primary);">Imagem de Fundo do Voucher</label>
+                <input type="file" id="evt-img-file" accept="image/*" style="margin-bottom: 8px;">
+                <p style="text-align: center; font-size: 11px; color: gray; margin: 4px 0;">-- OU COLE UM LINK DA WEB --</p>
+                <input type="text" id="evt-img-url" placeholder="https://site.com/sua-imagem.jpg">
+            </div>
+
             <div class="form-group"> 
                 <label>Mensagem de Envio do WhatsApp</label> 
-                <textarea id="evt-msg" rows="3" placeholder="Olá [NOME]! Seu voucher para o evento está confirmado. Segue o link:"></textarea>
-                <small style="color:gray; font-size:11px;">Use <b>[NOME]</b> para personalizar com o nome do convidado.</small>
+                <textarea id="evt-msg" rows="2" placeholder="Olá [NOME]! Seu voucher para o evento está confirmado. Segue o link:"></textarea>
+                <small style="color:gray; font-size:11px;">Use <b>[NOME]</b> para personalização.</small>
             </div>
-            <button class="btn-submit" onclick="salvarEvento()">Criar Evento Instantaneamente</button>
+            <button class="btn-submit" onclick="salvarEvento()">Criar Evento</button>
             <button class="btn-submit" style="background:#9CA3AF; margin-top:10px;" onclick="closeModal()">Cancelar</button>
         </div>
     </div>
@@ -119,14 +126,25 @@
     <canvas id="voucherCanvas"></canvas>
 
     <script>
-        // ⚠️ ATENÇÃO: COLOQUE AQUI A URL DO SEU GOOGLE APPS SCRIPT (O QUE ESTÁ NO SEU CÓDIGO.GS)
         const API_URL = "https://script.google.com/macros/s/AKfycbxWKWwHiYhbd63x3UeaKch3J2NkOhRZCq7Kl9G0dTPu_9PALkbFrlzCauq3Ws-HAEC8/exec";
 
         let eventos = [];
         let eventoAtual = null;
         let clientesCarregados = [];
+        let imagemBase64Carregada = "";
 
-        // Conexão com o Google Sheets apenas para buscar/gravar dados de Clientes
+        // Captura e conversão da imagem de upload local para Base64 leve
+        document.getElementById('evt-img-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    imagemBase64Carregada = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
         async function chamarAPI(dados) {
             const resposta = await fetch(API_URL, {
                 method: "POST",
@@ -143,12 +161,16 @@
             document.getElementById(tabId).classList.add('active');
             document.getElementById('btn-' + tabId).classList.add('active');
             
+            // Controle automático da câmera ao entrar na aba Leitor
+            if(tabId === 'leitor') { startScanner(); } else { stopScanner(); }
+
             if(tabId === 'eventos') carregarEExibirEventos();
             if(tabId === 'voucher') renderVoucherEventos();
             if(tabId === 'relatorio') renderRelatorioEventos();
         }
 
         function openModal() { 
+            imagemBase64Carregada = "";
             document.getElementById('modalEvento').style.display = 'flex'; 
         }
 
@@ -156,7 +178,6 @@
             document.getElementById('modalEvento').style.display = 'none'; 
         }
 
-        // CARREGA EVENTOS SALVOS NO TERMINAL (Sincronizado via localStorage do GitHub Pages)
         function carregarEExibirEventos() {
             const container = document.getElementById('lista-eventos');
             const salvos = localStorage.getItem('eventos_github');
@@ -164,7 +185,7 @@
             
             container.innerHTML = '';
             if(eventos.length === 0) { 
-                container.innerHTML = '<p class="loading">Nenhum evento ativo criado neste aparelho. Clique no botão "+" acima para adicionar.</p>'; 
+                container.innerHTML = '<p class="loading">Nenhum evento criado. Clique no botão "+" acima para adicionar.</p>'; 
                 return; 
             }
             
@@ -183,30 +204,37 @@
             });
         }
 
-        // CRIA O EVENTO LOCALMENTE DE FORMA INSTANTÂNEA
         function salvarEvento() {
             const nome = document.getElementById('evt-nome').value.trim();
             const sheets = document.getElementById('evt-sheets').value.trim();
+            const urlImg = document.getElementById('evt-img-url').value.trim();
             const mensagem = document.getElementById('evt-msg').value.trim() || "Olá [NOME]! Segue seu voucher.";
 
             if (!nome || !sheets) { 
-                alert("Por favor, preencha o nome do evento e insira o link da planilha do Google."); 
+                alert("Por favor, preencha o nome do evento e insira o link da planilha."); 
                 return; 
             }
+
+            // Define se usará o arquivo em Base64 ou a URL digitada
+            let fundoDefinido = "PADRAO";
+            if (imagemBase64Carregada) fundoDefinido = imagemBase64Carregada;
+            else if (urlImg) fundoDefinido = urlImg;
 
             const novoEvento = {
                 id: 'id_' + Date.now(),
                 nome: nome,
                 sheets: sheets,
-                mensagem: mensagem
+                mensagem: mensagem,
+                fundo: fundoDefinido
             };
 
             eventos.push(novoEvento);
             localStorage.setItem('eventos_github', JSON.stringify(eventos));
             
-            // Limpa formulário
             document.getElementById('evt-nome').value = "";
             document.getElementById('evt-sheets').value = "";
+            document.getElementById('evt-img-url').value = "";
+            document.getElementById('evt-img-file').value = "";
             document.getElementById('evt-msg').value = "";
             
             closeModal();
@@ -214,7 +242,7 @@
         }
 
         function deletarEvento(id) {
-            if(confirm("Deseja realmente remover este evento da sua lista?")) {
+            if(confirm("Deseja remover este evento?")) {
                 eventos = eventos.filter(e => e.id !== id);
                 localStorage.setItem('eventos_github', JSON.stringify(eventos));
                 carregarEExibirEventos();
@@ -227,37 +255,27 @@
             eventos = salvos ? JSON.parse(salvos) : [];
             
             container.innerHTML = '';
-            if(eventos.length === 0) {
-                container.innerHTML = '<p class="loading">Crie um evento na primeira aba antes de emitir vouchers.</p>';
-                return;
-            }
+            if(eventos.length === 0) { container.innerHTML = '<p class="loading">Crie um evento antes.</p>'; return; }
             eventos.forEach(evt => {
-                container.innerHTML += `
-                    <div class="card" onclick="verClientesVoucher('${evt.id}')">
-                        <span class="badge">Ativo</span>
-                        <h3>${evt.nome}</h3>
-                    </div>`;
+                container.innerHTML += `<div class="card" onclick="verClientesVoucher('${evt.id}')"><span class="badge">Ativo</span><h3>${evt.nome}</h3></div>`;
             });
         }
 
-        // BUSCA CONVIDADOS DA PLANILHA DO GOOGLE CORRESPONDENTE AO EVENTO
         async function verClientesVoucher(id) {
             eventoAtual = eventos.find(e => e.id === id);
             document.getElementById('voucher-eventos-grid').style.display = 'none';
             document.getElementById('voucher-clientes-secao').style.display = 'block';
             document.getElementById('voucher-evento-titulo').innerText = `Clientes: ${eventoAtual.nome}`;
             
-            const lista = document.getElementById('lista-clientes-voucher'); 
-            lista.innerHTML = '';
+            const lista = document.getElementById('lista-clientes-voucher'); lista.innerHTML = '';
             document.getElementById('loading-clientes').style.display = 'block';
 
             try {
-                // Aqui fazemos a busca real na planilha do Google correspondente
                 const resposta = await chamarAPI({ acao: "buscarDados", urlPlanilha: eventoAtual.sheets });
                 document.getElementById('loading-clientes').style.display = 'none';
                 clientesCarregados = resposta.sort((a,b) => a.nome.localeCompare(b.nome));
 
-                if(clientesCarregados.length === 0) { lista.innerHTML = '<p class="loading">Nenhum convidado cadastrado nesta planilha.</p>'; return; }
+                if(clientesCarregados.length === 0) { lista.innerHTML = '<p class="loading">Nenhum convidado cadastrado.</p>'; return; }
 
                 clientesCarregados.forEach((cli, index) => {
                     let btnHtml = cli.status.toLowerCase() === "voucher criado" 
@@ -276,7 +294,7 @@
                 });
             } catch (err) {
                 document.getElementById('loading-clientes').style.display = 'none';
-                alert("Erro ao acessar a planilha do Google Sheets: " + err.message + "\\n\\nVerifique se o link da planilha está correto e se o seu Apps Script está ativo.");
+                alert("Erro ao ler dados: " + err.message);
                 voltarEventosVoucher();
             }
         }
@@ -296,23 +314,33 @@
             const canvas = document.getElementById('voucherCanvas'); const ctx = canvas.getContext('2d');
             canvas.width = 1080; canvas.height = 1920;
             
-            ctx.fillStyle = "#4F46E5"; 
-            ctx.fillRect(0, 0, 1080, 1920); 
-            desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index);
+            if (eventoAtual.fundo && eventoAtual.fundo !== "PADRAO") {
+                const imgFundo = new Image();
+                imgFundo.src = eventoAtual.fundo;
+                imgFundo.onload = function() {
+                    ctx.drawImage(imgFundo, 0, 0, 1080, 1920);
+                    desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index);
+                };
+                imgFundo.onerror = function() {
+                    ctx.fillStyle = "#4F46E5"; ctx.fillRect(0, 0, 1080, 1920);
+                    desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index);
+                };
+            } else {
+                ctx.fillStyle = "#4F46E5"; ctx.fillRect(0, 0, 1080, 1920);
+                desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index);
+            }
         }
 
         function desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index) {
             const stringQr = `VALIDO|${eventoAtual.sheets}|${nome}`;
             QRCode.toDataURL(stringQr, { width: 420, margin: 1 }, async function (err, url) {
-                if (err) { alert("Erro no QR Code."); return; }
+                if (err) return;
                 const qrImg = new Image(); qrImg.src = url;
                 qrImg.onload = async function() {
                     ctx.drawImage(qrImg, 330, 1150, 420, 420);
-                    
                     const blocoX = 80; const blocoY = 1590;
                     ctx.fillStyle = "rgba(255, 255, 255, 0.95)"; ctx.fillRect(blocoX, blocoY, 920, 270);
                     ctx.textAlign = "left"; ctx.fillStyle = "#000000";
-                    
                     ctx.font = "bold 38px Arial"; ctx.fillText("CONVITE INDIVIDUAL CONFIRMADO", blocoX + 40, blocoY + 70);
                     ctx.font = "36px Arial"; ctx.fillText(`Convidado: ${nome}`, blocoX + 40, blocoY + 140);
                     ctx.fillText(`Acompanhantes: ${acompanhantes}`, blocoX + 40, blocoY + 210);
@@ -326,7 +354,6 @@
                             document.getElementById(`actions-${index}`).innerHTML = `<button class="btn-print" onclick="renderizarEImprimir('${nome}', '${acompanhantes}', true)">Imprimir</button>`;
                             abrirJanelaImpressao(nome, dataUrl);
                         } catch(e) {
-                            alert("Voucher gerado, mas falhou ao registrar na planilha.");
                             abrirJanelaImpressao(nome, dataUrl);
                         }
                     }
@@ -341,56 +368,60 @@
                 <body style="margin:0; display:flex; flex-direction:column; align-items:center; background:#111827; color:white; font-family:sans-serif; padding:20px;">
                     <h2>Voucher de ${nome}</h2>
                     <img src="${dataUrl}" style="max-width:95%; max-height:65vh; border-radius:8px;"/>
-                    <div style="margin-top:20px; background:#1F2937; padding:15px; border-radius:8px; width:90%; max-width:400px;">
-                        <p style="font-size:14px;">"${msg}"</p>
-                    </div>
                     <div style="margin-top:25px; display:flex; flex-direction:column; gap:12px; width:90%; max-width:400px;">
-                        <a href="${dataUrl}" download="Voucher_${nome}.png" style="padding:15px; background:#4F46E5; color:white; text-decoration:none; text-align:center; font-weight:bold; border-radius:6px;">⬇️ Salvar Imagem no Celular</a>
+                        <a href="${dataUrl}" download="Voucher_${nome}.png" style="padding:15px; background:#4F46E5; color:white; text-decoration:none; text-align:center; font-weight:bold; border-radius:6px;">⬇️ Salvar Imagem</a>
                         <a href="https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}" target="_blank" style="padding:15px; background:#10B981; color:white; text-decoration:none; text-align:center; font-weight:bold; border-radius:6px;">💬 Enviar via WhatsApp</a>
                     </div>
                 </body>`);
         }
 
+        // LEITOR AUTOMÁTICO - Corrige e força inicialização de câmera traseira no celular
         let html5QrcodeScanner = null;
+        
         function startScanner() {
-            document.getElementById('leitor-resultado').innerText = "Iniciando câmera...";
-            if(html5QrcodeScanner) html5QrcodeScanner.clear();
+            document.getElementById('leitor-resultado').innerText = "Solicitando acesso à câmera...";
             
-            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
-            html5QrcodeScanner.render(async (decodedText, decodedResult) => {
+            if(!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+                    fps: 10, 
+                    qrbox: 250,
+                    rememberLastUsedCamera: true,
+                    supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+                });
+            }
+            
+            html5QrcodeScanner.render(async (decodedText) => {
                 if(decodedText.startsWith("VALIDO")) {
                     const partes = decodedText.split("|");
                     const sheetId = partes[1]; const nomeCliente = partes[2];
                     const agora = new Date().toLocaleString('pt-BR');
                     
                     document.getElementById('leitor-resultado').style.color = "orange";
-                    document.getElementById('leitor-resultado').innerHTML = `⏳ Gravando entrada no Sheets...`;
-                    html5QrcodeScanner.clear();
+                    document.getElementById('leitor-resultado').innerText = "⏳ Gravando presença...";
+                    stopScanner();
 
                     try {
                         await chamarAPI({ acao: "atualizarStatus", urlPlanilha: sheetId, nomeCliente: nomeCliente, novoStatus: `Presença confirmada às: ${agora}` });
                         document.getElementById('leitor-resultado').style.color = "#10B981";
-                        document.getElementById('leitor-resultado').innerHTML = `✅ Entrada Liberada!<br>${nomeCliente} às ${agora}`;
+                        document.getElementById('leitor-resultado').innerHTML = `✅ Entrada Liberada!<br>${nomeCliente}`;
                     } catch(e) {
                         document.getElementById('leitor-resultado').style.color = "red";
                         document.getElementById('leitor-resultado').innerText = "❌ Erro ao registrar presença.";
                     }
-                } else {
-                    document.getElementById('leitor-resultado').style.color = "red";
-                    document.getElementById('leitor-resultado').innerText = "❌ QR Code não reconhecido.";
                 }
             }, (error) => {});
         }
 
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear().catch(err => console.log("Erro ao fechar camera: ", err));
+            }
+        }
+
         function renderRelatorioEventos() {
-            const container = document.getElementById('relatorio-eventos-grid');
-            container.innerHTML = '';
+            const container = document.getElementById('relatorio-eventos-grid'); container.innerHTML = '';
             eventos.forEach(evt => {
-                container.innerHTML += `
-                    <div class="card" onclick="verRelatorioDetalhe('${evt.id}')">
-                        <span class="badge">Ativo</span>
-                        <h3>${evt.nome}</h3>
-                    </div>`;
+                container.innerHTML += `<div class="card" onclick="verRelatorioDetalhe('${evt.id}')"><span class="badge">Ativo</span><h3>${evt.nome}</h3></div>`;
             });
         }
 
@@ -406,16 +437,14 @@
                 const clientes = await chamarAPI({ acao: "buscarDados", urlPlanilha: eventoAtual.sheets });
                 document.getElementById('loading-relatorio').style.display = 'none';
                 document.getElementById('conteudo-relatorio').style.display = 'block';
-                
                 const total = clientes.length;
                 const confirmados = clientes.filter(c => c.status.toLowerCase().includes("presença confirmada")).length;
-
                 document.getElementById('relatorio-qtd-clientes').innerText = `Total de Clientes na lista: ${total}`;
                 document.getElementById('relatorio-qtd-confirmados').innerText = `Pessoas que já entraram: ${confirmados}`;
                 document.getElementById('btn-exportar').onclick = function() { window.print(); }
             } catch(e) {
                 document.getElementById('loading-relatorio').style.display = 'none';
-                alert("Erro ao processar relatório: " + e.message);
+                alert("Erro no relatório: " + e.message);
             }
         }
 
@@ -424,7 +453,6 @@
             document.getElementById('relatorio-detalhe').style.display = 'none';
         }
 
-        // Inicializa listando os eventos locais do GitHub
         carregarEExibirEventos();
     </script>
 </body>
