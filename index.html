@@ -131,12 +131,16 @@
         let clientesCarregados = [];
 
         async function chamarAPI(dados) {
-            const resposta = await fetch(API_URL, {
-                method: "POST",
-                body: JSON.stringify(dados)
-            });
-            return await resposta.json();
-        }
+    const resposta = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "text/plain" // Evita o pré-bloqueio de CORS em requisições externas
+        },
+        body: JSON.stringify(dados)
+    });
+    if (!resposta.ok) throw new Error("Erro na resposta do servidor Google.");
+    return await resposta.json();
+}
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
