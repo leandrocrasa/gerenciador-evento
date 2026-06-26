@@ -123,287 +123,283 @@
     <canvas id="voucherCanvas"></canvas>
 
     <script>
-        // ⚠️ ATENÇÃO: COLE A URL DO SEU GOOGLE APPS SCRIPT ENTRE AS ASPAS ABAIXO!
-        const API_URL = "https://script.google.com/macros/s/AKfycbxWKWwHiYhbd63x3UeaKch3J2NkOhRZCq7Kl9G0dTPu_9PALkbFrlzCauq3Ws-HAEC8/exec";
+        // ⚠️ INSIRA A URL ATUALIZADA DO SEU APPS SCRIPT AQUI
+const API_URL = "SUA_NOVA_URL_DO_APPS_SCRIPT_AQUI";
 
-        let eventos = JSON.parse(localStorage.getItem('eventos')) || [];
-        let eventoAtual = null;
-        let clientesCarregados = [];
+let eventos = [];
+let eventoAtual = null;
+let clientesCarregados = [];
 
-        async function chamarAPI(dados) {
+async function chamarAPI(dados) {
     const resposta = await fetch(API_URL, {
         method: "POST",
-        headers: {
-            "Content-Type": "text/plain" // Evita o pré-bloqueio de CORS em requisições externas
-        },
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify(dados)
     });
-    if (!resposta.ok) throw new Error("Erro na resposta do servidor Google.");
+    if (!resposta.ok) throw new Error("Erro de conexão com o servidor Google.");
     return await resposta.json();
 }
 
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            document.getElementById('btn-' + tabId).classList.add('active');
-            
-            if(tabId === 'eventos') renderEventos();
-            if(tabId === 'voucher') renderVoucherEventos();
-            if(tabId === 'relatorio') renderRelatorioEventos();
-        }
+async function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    document.getElementById('btn-' + tabId).classList.add('active');
+    
+    // Agora ele sempre recarrega do banco de dados ao mudar de aba
+    if(tabId === 'eventos') await carregarEExibirEventos();
+    if(tabId === 'voucher') await renderVoucherEventos();
+    if(tabId === 'relatorio') await renderRelatorioEventos();
+}
 
-        function openModal() { document.getElementById('modalEvento').style.display = 'flex'; }
-        function closeModal() { document.getElementById('modalEvento').style.display = 'none'; }
-
-        function salvarEvento() {
-            const fileInput = document.getElementById('evt-img-file');
-            const file = fileInput.files[0];
-            const nome = document.getElementById('evt-nome').value;
-            const sheets = document.getElementById('evt-sheets').value;
-            const status = document.getElementById('evt-status').value;
-            const mensagem = document.getElementById('evt-msg').value || "Olá [NOME]! Segue seu voucher.";
-
-            if (!nome || !sheets) { alert("Preencha o nome e o link da planilha."); return; }
-
-            const estruturar = (imgData) => ({ id: Date.now(), nome, imagem: imgData, sheets, status, mensagem });
-
-            if (file) {
-                const reader = new FileReader();
-                reader.onloadend = function() {
-                    eventos.push(estruturar(reader.result));
-                    localStorage.setItem('eventos', JSON.stringify(eventos));
-                    closeModal(); renderEventos(); fileInput.value = "";
-                }
-                reader.readAsDataURL(file);
-            } else {
-                eventos.push(estruturar("azul_padrao"));
-                localStorage.setItem('eventos', JSON.stringify(eventos));
-                closeModal(); renderEventos();
-            }
-        }
-
-        function excluirEvento(id, event) {
-            event.stopPropagation();
-            if(confirm("Deseja excluir este evento do painel local?")) {
-                eventos = eventos.filter(e => e.id !== id);
-                localStorage.setItem('eventos', JSON.stringify(eventos));
-                renderEventos();
-            }
-        }
-
-        function renderEventos() {
-            const container = document.getElementById('lista-eventos'); container.innerHTML = '';
-            if(eventos.length === 0) { container.innerHTML = '<p class="loading">Nenhum evento. Clique no "+".</p>'; return; }
-            eventos.forEach(evt => {
-                container.innerHTML += `
-                    <div class="card" onclick="switchTab('voucher'); verClientesVoucher(${evt.id});">
-                        <div class="card-body">
-                            <span class="badge ${evt.status === 'em andamento' ? 'andamento' : 'finalizado'}">${evt.status}</span>
-                            <h3>${evt.nome}</h3>
-                            <p style="font-size:12px; color:gray; margin-top:5px;">📋 Ver vouchers</p>
-                        </div>
-                        <div class="card-actions"><span></span><button class="btn-delete" onclick="excluirEvento(${evt.id}, event)">🗑️ Excluir</button></div>
-                    </div>`;
-            });
-        }
-
-        function renderVoucherEventos() {
-            const container = document.getElementById('voucher-eventos-grid'); container.innerHTML = '';
-            eventos.forEach(evt => {
-                container.innerHTML += `
-                    <div class="card" onclick="verClientesVoucher(${evt.id})">
-                        <span class="badge ${evt.status === 'em andamento' ? 'andamento' : 'finalizado'}">${evt.status}</span>
+// Carrega os eventos direto do Google Sheets global
+async function carregarEExibirEventos() {
+    const container = document.getElementById('lista-eventos');
+    container.innerHTML = '<p class="loading">Sincronizando eventos globais...</p>';
+    try {
+        eventos = await chamarAPI({ acao: "listarEventos" });
+        container.innerHTML = '';
+        if(eventos.length === 0) { container.innerHTML = '<p class="loading">Nenhum evento ativo. Clique no "+".</p>'; return; }
+        eventos.forEach(evt => {
+            container.innerHTML += `
+                <div class="card" onclick="switchTab('voucher'); verClientesVoucher(${evt.id});">
+                    <div class="card-body">
+                        <span class="badge andamento">Ativo</span>
                         <h3>${evt.nome}</h3>
-                    </div>`;
-            });
-        }
+                        <p style="font-size:12px; color:gray; margin-top:5px;">📋 Emitir vouchers</p>
+                    </div>
+                </div>`;
+        });
+    } catch(e) {
+        container.innerHTML = `<p class="loading" style="color:red;">Erro ao sincronizar eventos: ${e.message}</p>`;
+    }
+}
 
-        async function verClientesVoucher(id) {
-            eventoAtual = eventos.find(e => e.id === id);
-            document.getElementById('voucher-eventos-grid').style.display = 'none';
-            document.getElementById('voucher-clientes-secao').style.display = 'block';
-            document.getElementById('voucher-evento-titulo').innerText = `Clientes: ${eventoAtual.nome}`;
+async function salvarEvento() {
+    const nome = document.getElementById('evt-nome').value;
+    const sheets = document.getElementById('evt-sheets').value;
+    const mensagem = document.getElementById('evt-msg').value || "Olá [NOME]! Segue seu voucher.";
+
+    if (!nome || !sheets) { alert("Preencha o nome e o link da planilha."); return; }
+
+    try {
+        closeModal();
+        document.getElementById('lista-eventos').innerHTML = '<p class="loading">Salvando evento na nuvem...</p>';
+        
+        // Envia para o banco de dados do Google
+        await chamarAPI({ acao: "salvarEvento", nome: nome, urlSheets: sheets, mensagem: mensagem });
+        
+        // Limpa formulário e recarrega
+        document.getElementById('evt-nome').value = "";
+        document.getElementById('evt-sheets').value = "";
+        await carregarEExibirEventos();
+    } catch(e) {
+        alert("Erro ao salvar evento global: " + e.message);
+        await carregarEExibirEventos();
+    }
+}
+
+async function renderVoucherEventos() {
+    const container = document.getElementById('voucher-eventos-grid');
+    container.innerHTML = '<p class="loading">Carregando...</p>';
+    try {
+        eventos = await chamarAPI({ acao: "listarEventos" });
+        container.innerHTML = '';
+        eventos.forEach(evt => {
+            container.innerHTML += `
+                <div class="card" onclick="verClientesVoucher(${evt.id})">
+                    <span class="badge andamento">Ativo</span>
+                    <h3>${evt.nome}</h3>
+                </div>`;
+        });
+    } catch(e) { container.innerHTML = "Erro ao carregar lista de vouchers."; }
+}
+
+async function verClientesVoucher(id) {
+    eventoAtual = eventos.find(e => e.id === id);
+    document.getElementById('voucher-eventos-grid').style.display = 'none';
+    document.getElementById('voucher-clientes-secao').style.display = 'block';
+    document.getElementById('voucher-evento-titulo').innerText = `Clientes: ${eventoAtual.nome}`;
+    
+    const lista = document.getElementById('lista-clientes-voucher'); 
+    lista.innerHTML = '';
+    document.getElementById('loading-clientes').style.display = 'block';
+
+    try {
+        const clientes = await chamarAPI({ acao: "buscarDados", urlPlanilha: eventoAtual.sheets });
+        document.getElementById('loading-clientes').style.display = 'none';
+        clientesCarregados = clientes.sort((a,b) => a.nome.localeCompare(b.nome));
+
+        if(clientesCarregados.length === 0) { lista.innerHTML = '<p class="loading">Nenhum cliente cadastrado nesta planilha.</p>'; return; }
+
+        clientesCarregados.forEach((cli, index) => {
+            let btnHtml = cli.status.toLowerCase() === "voucher criado" 
+                ? `<button class="btn-print" onclick="renderizarEImprimir('${cli.nome}', '${cli.acompanhantes}', true)">Imprimir</button>` 
+                : `<button class="btn-action" id="btn-gerar-${index}" onclick="gerarVoucher('${cli.nome}', '${cli.acompanhantes}', ${index})">Gerar</button>`;
             
-            const lista = document.getElementById('lista-clientes-voucher'); lista.innerHTML = '';
-            document.getElementById('loading-clientes').style.display = 'block';
+            lista.innerHTML += `
+                <div class="client-item">
+                    <div>
+                        <strong>${cli.nome}</strong> <br>
+                        <span style="font-size:12px; color:gray;">Acom.: ${cli.acompanhantes}</span> <br>
+                        <span id="status-label-${index}" style="font-size:11px; font-weight:bold; color:${cli.status ? '#10B981' : '#9CA3AF'}">${cli.status || 'Pendente'}</span>
+                    </div>
+                    <div id="actions-${index}">${btnHtml}</div>
+                </div>`;
+        });
+    } catch (err) {
+        document.getElementById('loading-clientes').style.display = 'none';
+        alert("Erro ao acessar dados dos convidados: " + err.message);
+    }
+}
+
+function voltarEventosVoucher() {
+    document.getElementById('voucher-eventos-grid').style.display = 'grid';
+    document.getElementById('voucher-clientes-secao').style.display = 'none';
+}
+
+function gerarVoucher(nome, acompanhantes, index) {
+    const btn = document.getElementById(`btn-gerar-${index}`);
+    if (btn) btn.innerText = "Processando...";
+    renderizarEImprimir(nome, acompanhantes, false, index);
+}
+
+function renderizarEImprimir(nome, acompanhantes, abrirDireto, index = null) {
+    const canvas = document.getElementById('voucherCanvas'); const ctx = canvas.getContext('2d');
+    canvas.width = 1080; canvas.height = 1920;
+    
+    // Renderiza sempre com o fundo moderno para manter a consistência em rede externa rápida
+    ctx.fillStyle = "#4F46E5"; 
+    ctx.fillRect(0, 0, 1080, 1920); 
+    desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index);
+}
+
+function desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index) {
+    const stringQr = `VALIDO|${eventoAtual.sheets}|${nome}`;
+    QRCode.toDataURL(stringQr, { width: 420, margin: 1 }, async function (err, url) {
+        if (err) { alert("Erro no QR Code."); return; }
+        const qrImg = new Image(); qrImg.src = url;
+        qrImg.onload = async function() {
+            ctx.drawImage(qrImg, 330, 1150, 420, 420);
+            
+            const blocoX = 80; const blocoY = 1590;
+            ctx.fillStyle = "rgba(255, 255, 255, 0.95)"; ctx.fillRect(blocoX, blocoY, 920, 270);
+            ctx.textAlign = "left"; ctx.fillStyle = "#000000";
+            
+            ctx.font = "bold 38px Arial"; ctx.fillText("CONVITE INDIVIDUAL CONFIRMADO", blocoX + 40, blocoY + 70);
+            ctx.font = "36px Arial"; ctx.fillText(`Convidado: ${nome}`, blocoX + 40, blocoY + 140);
+            ctx.fillText(`Acompanhantes: ${acompanhantes}`, blocoX + 40, blocoY + 210);
+            
+            const dataUrl = canvas.toDataURL("image/png");
+            if (abrirDireto) { abrirJanelaImpressao(nome, dataUrl); } else {
+                try {
+                    await chamarAPI({ acao: "atualizarStatus", urlPlanilha: eventoAtual.sheets, nomeCliente: nome, novoStatus: "voucher criado" });
+                    document.getElementById(`status-label-${index}`).innerText = "voucher criado";
+                    document.getElementById(`status-label-${index}`).style.color = "#10B981";
+                    document.getElementById(`actions-${index}`).innerHTML = `<button class="btn-print" onclick="renderizarEImprimir('${nome}', '${acompanhantes}', true)">Imprimir</button>`;
+                    abrirJanelaImpressao(nome, dataUrl);
+                } catch(e) {
+                    alert("Voucher gerado, mas falhou ao registrar na planilha.");
+                    abrirJanelaImpressao(nome, dataUrl);
+                }
+            }
+        };
+    });
+}
+
+function abrirJanelaImpressao(nome, dataUrl) {
+    let msg = (eventoAtual.mensagem || "Olá [NOME]! Segue seu voucher.").replace("[NOME]", nome);
+    const win = window.open();
+    win.document.write(`
+        <body style="margin:0; display:flex; flex-direction:column; align-items:center; background:#111827; color:white; font-family:sans-serif; padding:20px;">
+            <h2>Voucher de ${nome}</h2>
+            <img src="${dataUrl}" style="max-width:95%; max-height:65vh; border-radius:8px;"/>
+            <div style="margin-top:20px; background:#1F2937; padding:15px; border-radius:8px; width:90%; max-width:400px;">
+                <p style="font-size:14px;">"${msg}"</p>
+            </div>
+            <div style="margin-top:25px; display:flex; flex-direction:column; gap:12px; width:90%; max-width:400px;">
+                <a href="${dataUrl}" download="Voucher_${nome}.png" style="padding:15px; background:#4F46E5; color:white; text-decoration:none; text-align:center; font-weight:bold; border-radius:6px;">⬇️ Salvar Imagem no Celular</a>
+                <a href="https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}" target="_blank" style="padding:15px; background:#10B981; color:white; text-decoration:none; text-align:center; font-weight:bold; border-radius:6px;">💬 Enviar via WhatsApp</a>
+            </div>
+        </body>`);
+}
+
+// --- LEITOR EM TEMPO REAL ---
+let html5QrcodeScanner = null;
+function startScanner() {
+    document.getElementById('leitor-resultado').innerText = "Iniciando câmera...";
+    if(html5QrcodeScanner) html5QrcodeScanner.clear();
+    
+    html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
+    html5QrcodeScanner.render(async (decodedText, decodedResult) => {
+        if(decodedText.startsWith("VALIDO")) {
+            const partes = decodedText.split("|");
+            const sheetId = partes[1]; const nomeCliente = partes[2];
+            const agora = new Date().toLocaleString('pt-BR');
+            
+            document.getElementById('leitor-resultado').innerHTML = `⏳ Confirmando entrada...`;
+            html5QrcodeScanner.clear();
 
             try {
-                const clientes = await chamarAPI({ acao: "buscarDados", urlPlanilha: eventoAtual.sheets });
-                document.getElementById('loading-clientes').style.display = 'none';
-                clientesCarregados = clientes.sort((a,b) => a.nome.localeCompare(b.nome));
-
-                if(clientesCarregados.length === 0) { lista.innerHTML = '<p class="loading">Nenhum dado encontrado.</p>'; return; }
-
-                clientesCarregados.forEach((cli, index) => {
-                    let btnHtml = cli.status.toLowerCase() === "voucher criado" 
-                        ? `<button class="btn-print" onclick="renderizarEImprimir('${cli.nome}', '${cli.acompanhantes}', true)">Imprimir</button>` 
-                        : `<button class="btn-action" id="btn-gerar-${index}" onclick="gerarVoucher('${cli.nome}', '${cli.acompanhantes}', ${index})">Gerar</button>`;
-                    
-                    lista.innerHTML += `
-                        <div class="client-item">
-                            <div>
-                                <strong>${cli.nome}</strong> <br>
-                                <span style="font-size:12px; color:gray;">Acom.: ${cli.acompanhantes}</span> <br>
-                                <span id="status-label-${index}" style="font-size:11px; font-weight:bold; color:${cli.status ? '#10B981' : '#9CA3AF'}">${cli.status || 'Pendente'}</span>
-                            </div>
-                            <div id="actions-${index}">${btnHtml}</div>
-                        </div>`;
-                });
-            } catch (err) {
-                document.getElementById('loading-clientes').style.display = 'none';
-                alert("Erro ao carregar planilha: " + err.message);
-            }
-        }
-
-        function voltarEventosVoucher() {
-            document.getElementById('voucher-eventos-grid').style.display = 'grid';
-            document.getElementById('voucher-clientes-secao').style.display = 'none';
-        }
-
-        function gerarVoucher(nome, acompanhantes, index) {
-            const btn = document.getElementById(`btn-gerar-${index}`);
-            if (btn) btn.innerText = "Processando...";
-            renderizarEImprimir(nome, acompanhantes, false, index);
-        }
-
-        function renderizarEImprimir(nome, acompanhantes, abrirDireto, index = null) {
-            const canvas = document.getElementById('voucherCanvas'); const ctx = canvas.getContext('2d');
-            canvas.width = 1080; canvas.height = 1920;
-
-            const prosseguir = () => { desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index); };
-
-            if (!eventoAtual.imagem || eventoAtual.imagem === "azul_padrao") {
-                ctx.fillStyle = "#4F46E5"; ctx.fillRect(0, 0, 1080, 1920); prosseguir(); return;
-            }
-
-            const img = new Image();
-            img.onload = function() { ctx.drawImage(img, 0, 0, 1080, 1920); prosseguir(); };
-            img.onerror = function() { ctx.fillStyle = "#4F46E5"; ctx.fillRect(0, 0, 1080, 1920); prosseguir(); };
-            img.src = eventoAtual.imagem;
-        }
-
-        function desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index) {
-            const stringQr = `VALIDO|${eventoAtual.sheets}|${nome}`;
-            QRCode.toDataURL(stringQr, { width: 420, margin: 1 }, async function (err, url) {
-                if (err) { alert("Erro no QR Code."); return; }
-                const qrImg = new Image(); qrImg.src = url;
-                qrImg.onload = async function() {
-                    ctx.drawImage(qrImg, 330, 1150, 420, 420);
-                    
-                    const blocoX = 80; const blocoY = 1590;
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.95)"; ctx.fillRect(blocoX, blocoY, 920, 270);
-                    ctx.textAlign = "left"; ctx.fillStyle = "#000000";
-                    
-                    ctx.font = "bold 38px Arial"; ctx.fillText("CONVITE INDIVIDUAL CONFIRMADO", blocoX + 40, blocoY + 70);
-                    ctx.font = "36px Arial"; ctx.fillText(`Convidado: ${nome}`, blocoX + 40, blocoY + 140);
-                    ctx.fillText(`Acompanhantes: ${acompanhantes}`, blocoX + 40, blocoY + 210);
-                    
-                    const dataUrl = canvas.toDataURL("image/png");
-                    if (abrirDireto) { abrirJanelaImpressao(nome, dataUrl); } else {
-                        try {
-                            await chamarAPI({ acao: "atualizarStatus", urlPlanilha: eventoAtual.sheets, nomeCliente: nome, novoStatus: "voucher criado" });
-                            document.getElementById(`status-label-${index}`).innerText = "voucher criado";
-                            document.getElementById(`status-label-${index}`).style.color = "#10B981";
-                            document.getElementById(`actions-${index}`).innerHTML = `<button class="btn-print" onclick="renderizarEImprimir('${nome}', '${acompanhantes}', true)">Imprimir</button>`;
-                            abrirJanelaImpressao(nome, dataUrl);
-                        } catch(e) {
-                            alert("Voucher pronto, mas houve um erro ao salvar na planilha.");
-                            abrirJanelaImpressao(nome, dataUrl);
-                        }
-                    }
-                };
-            });
-        }
-
-        function abrirJanelaImpressao(nome, dataUrl) {
-            let msg = (eventoAtual.mensagem || "Olá [NOME]! Segue seu voucher.").replace("[NOME]", nome);
-            const win = window.open();
-            win.document.write(`
-                <body style="margin:0; display:flex; flex-direction:column; align-items:center; background:#111827; color:white; font-family:sans-serif; padding:20px;">
-                    <h2>Voucher de ${nome}</h2>
-                    <img src="${dataUrl}" style="max-width:95%; max-height:65vh; border-radius:8px;"/>
-                    <div style="margin-top:20px; background:#1F2937; padding:15px; border-radius:8px; width:90%; max-width:400px;">
-                        <p style="font-size:14px;">"${msg}"</p>
-                    </div>
-                    <div style="margin-top:25px; display:flex; flex-direction:column; gap:12px; width:90%; max-width:400px;">
-                        <a href="${dataUrl}" download="Voucher_${nome}.png" style="padding:15px; background:#4F46E5; color:white; text-decoration:none; text-align:center; font-weight:bold; border-radius:6px;">⬇️ Salvar Imagem no Celular</a>
-                        <a href="https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}" target="_blank" style="padding:15px; background:#10B981; color:white; text-decoration:none; text-align:center; font-weight:bold; border-radius:6px;">💬 Enviar via WhatsApp</a>
-                    </div>
-                </body>`);
-        }
-
-        // --- LEITOR AO VIVO (AGORA LIBERADO PELO GITHUB) ---
-        let html5QrcodeScanner = null;
-        function startScanner() {
-            document.getElementById('leitor-resultado').innerText = "Iniciando câmera...";
-            if(html5QrcodeScanner) html5QrcodeScanner.clear();
-            
-            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
-            html5QrcodeScanner.render(async (decodedText, decodedResult) => {
-                if(decodedText.startsWith("VALIDO")) {
-                    const partes = decodedText.split("|");
-                    const sheetId = partes[1]; const nomeCliente = partes[2];
-                    const agora = new Date().toLocaleString('pt-BR');
-                    
-                    document.getElementById('leitor-resultado').innerHTML = `⏳ Processando presença...`;
-                    html5QrcodeScanner.clear();
-
-                    try {
-                        await chamarAPI({ acao: "atualizarStatus", urlPlanilha: sheetId, nomeCliente: nomeCliente, novoStatus: `Presença confirmada às: ${agora}` });
-                        document.getElementById('leitor-resultado').innerHTML = `✅ Presença confirmada!<br>${nomeCliente} às ${agora}`;
-                    } catch(e) {
-                        alert("Erro ao validar: " + e.message);
-                    }
-                } else {
-                    document.getElementById('leitor-resultado').innerText = "❌ QR Code inválido.";
-                }
-            }, (error) => {});
-        }
-
-        // --- RELATÓRIOS ---
-        function renderRelatorioEventos() {
-            const container = document.getElementById('relatorio-eventos-grid'); container.innerHTML = '';
-            eventos.forEach(evt => {
-                container.innerHTML += `
-                    <div class="card" onclick="verRelatorioDetalhe(${evt.id})">
-                        <span class="badge ${evt.status === 'em andamento' ? 'andamento' : 'finalizado'}">${evt.status}</span>
-                        <h3>${evt.nome}</h3>
-                    </div>`;
-            });
-        }
-
-        async function verRelatorioDetalhe(id) {
-            eventoAtual = eventos.find(e => e.id === id);
-            document.getElementById('relatorio-eventos-grid').style.display = 'none';
-            document.getElementById('relatorio-detalhe').style.display = 'block';
-            document.getElementById('relatorio-evento-titulo').innerText = `Resumo: ${eventoAtual.nome}`;
-            document.getElementById('conteudo-relatorio').style.display = 'none';
-            document.getElementById('loading-relatorio').style.display = 'block';
-
-            try {
-                const clientes = await chamarAPI({ acao: "buscarDados", urlPlanilha: eventoAtual.sheets });
-                document.getElementById('loading-relatorio').style.display = 'none';
-                document.getElementById('conteudo-relatorio').style.display = 'block';
-                
-                const total = clientes.length;
-                const confirmados = clientes.filter(c => c.status.toLowerCase().includes("presença confirmada")).length;
-
-                document.getElementById('relatorio-qtd-clientes').innerText = `Total de Clientes: ${total}`;
-                document.getElementById('relatorio-qtd-confirmados').innerText = `Confirmados: ${confirmados}`;
-                document.getElementById('btn-exportar').onclick = function() { window.print(); }
+                await chamarAPI({ acao: "atualizarStatus", urlPlanilha: sheetId, nomeCliente: nomeCliente, novoStatus: `Presença confirmada às: ${agora}` });
+                document.getElementById('leitor-resultado').innerHTML = `✅ Entrada Liberada!<br>${nomeCliente} às ${agora}`;
             } catch(e) {
-                document.getElementById('loading-relatorio').style.display = 'none';
-                alert("Erro ao gerar relatório: " + e.message);
+                alert("Erro ao registrar presença: " + e.message);
             }
+        } else {
+            document.getElementById('leitor-resultado').innerText = "❌ QR Code não reconhecido.";
         }
+    }, (error) => {});
+}
 
-        function voltarEventosRelatorio() {
-            document.getElementById('relatorio-eventos-grid').style.display = 'grid';
-            document.getElementById('relatorio-detalhe').style.display = 'none';
-        }
+// --- RELATÓRIOS ---
+async function renderRelatorioEventos() {
+    const container = document.getElementById('relatorio-eventos-grid'); container.innerHTML = '<p class="loading">Carregando...</p>';
+    try {
+        eventos = await chamarAPI({ acao: "listarEventos" });
+        container.innerHTML = '';
+        eventos.forEach(evt => {
+            container.innerHTML += `
+                <div class="card" onclick="verRelatorioDetalhe(${evt.id})">
+                    <span class="badge andamento">Ativo</span>
+                    <h3>${evt.nome}</h3>
+                </div>`;
+        });
+    } catch(e) { container.innerHTML = "Erro ao carregar relatórios."; }
+}
 
-        renderEventos();
+async function verRelatorioDetalhe(id) {
+    eventoAtual = eventos.find(e => e.id === id);
+    document.getElementById('relatorio-eventos-grid').style.display = 'none';
+    document.getElementById('relatorio-detalhe').style.display = 'block';
+    document.getElementById('relatorio-evento-titulo').innerText = `Resumo: ${eventoAtual.nome}`;
+    document.getElementById('conteudo-relatorio').style.display = 'none';
+    document.getElementById('loading-relatorio').style.display = 'block';
+
+    try {
+        const clientes = await chamarAPI({ acao: "buscarDados", urlPlanilha: eventoAtual.sheets });
+        document.getElementById('loading-relatorio').style.display = 'none';
+        document.getElementById('conteudo-relatorio').style.display = 'block';
+        
+        const total = clientes.length;
+        const confirmados = clientes.filter(c => c.status.toLowerCase().includes("presença confirmada")).length;
+
+        document.getElementById('relatorio-qtd-clientes').innerText = `Total de Clientes na lista: ${total}`;
+        document.getElementById('relatorio-qtd-confirmados').innerText = `Pessoas que já entraram: ${confirmados}`;
+        document.getElementById('btn-exportar').onclick = function() { window.print(); }
+    } catch(e) {
+        document.getElementById('loading-relatorio').style.display = 'none';
+        alert("Erro ao processar relatório: " + e.message);
+    }
+}
+
+function voltarEventosRelatorio() {
+    document.getElementById('relatorio-eventos-grid').style.display = 'grid';
+    document.getElementById('relatorio-detalhe').style.display = 'none';
+}
+
+// Inicialização automática puxando dados reais da nuvem
+carregarEExibirEventos();
     </script>
 </body>
 </html>
