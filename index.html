@@ -73,8 +73,11 @@
         <div id="leitor" class="tab-content">
             <h2>Validar Presença (Portaria)</h2>
             <div style="text-align: center; margin-top: 20px;">
+                <button class="btn-submit" style="max-width: 280px; margin-bottom:20px; background:#10B981;" onclick="startScanner()">
+                    📸 LIGAR CÂMERA DO CELULAR
+                </button>
                 <div id="reader" style="margin-bottom: 20px;"></div>
-                <h2 id="leitor-resultado" style="margin-top:20px;">Câmera pronta para escanear.</h2>
+                <h2 id="leitor-resultado" style="margin-top:20px;">Clique no botão acima para escanear.</h2>
             </div>
         </div>
 
@@ -126,7 +129,8 @@
     <canvas id="voucherCanvas"></canvas>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbxWKWwHiYhbd63x3UeaKch3J2NkOhRZCq7Kl9G0dTPu_9PALkbFrlzCauq3Ws-HAEC8/exec";
+        // ⚠️ ATENÇÃO: COLOQUE AQUI A SUA URL DO GOOGLE APPS SCRIPT
+        const API_URL = "SUA_URL_DO_APPS_SCRIPT_AQUI";
 
         let eventos = [];
         let eventoAtual = null;
@@ -161,8 +165,8 @@
             document.getElementById(tabId).classList.add('active');
             document.getElementById('btn-' + tabId).classList.add('active');
             
-            // Controle automático da câmera ao entrar na aba Leitor
-            if(tabId === 'leitor') { startScanner(); } else { stopScanner(); }
+            // Controle de segurança da câmera (nunca liga sem ação do usuário)
+            if(tabId !== 'leitor') { stopScanner(); }
 
             if(tabId === 'eventos') carregarEExibirEventos();
             if(tabId === 'voucher') renderVoucherEventos();
@@ -215,7 +219,6 @@
                 return; 
             }
 
-            // Define se usará o arquivo em Base64 ou a URL digitada
             let fundoDefinido = "PADRAO";
             if (imagemBase64Carregada) fundoDefinido = imagemBase64Carregada;
             else if (urlImg) fundoDefinido = urlImg;
@@ -375,11 +378,12 @@
                 </body>`);
         }
 
-        // LEITOR AUTOMÁTICO - Corrige e força inicialização de câmera traseira no celular
+        // LEITOR CORRIGIDO: Só dispara se o usuário interagir fisicamente com a tela
         let html5QrcodeScanner = null;
         
         function startScanner() {
-            document.getElementById('leitor-resultado').innerText = "Solicitando acesso à câmera...";
+            document.getElementById('leitor-resultado').style.color = "black";
+            document.getElementById('leitor-resultado').innerText = "Solicitando permissão de câmera...";
             
             if(!html5QrcodeScanner) {
                 html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
@@ -414,7 +418,7 @@
 
         function stopScanner() {
             if (html5QrcodeScanner) {
-                html5QrcodeScanner.clear().catch(err => console.log("Erro ao fechar camera: ", err));
+                html5QrcodeScanner.clear().catch(err => console.log("Câmera fechada."));
             }
         }
 
@@ -447,13 +451,3 @@
                 alert("Erro no relatório: " + e.message);
             }
         }
-
-        function voltarEventosRelatorio() {
-            document.getElementById('relatorio-eventos-grid').style.display = 'grid';
-            document.getElementById('relatorio-detalhe').style.display = 'none';
-        }
-
-        carregarEExibirEventos();
-    </script>
-</body>
-</html>
