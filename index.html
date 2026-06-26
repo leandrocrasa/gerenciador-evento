@@ -19,21 +19,15 @@
         .tab-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .btn-add { background: var(--primary); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        
-        /* Cards Modificados */
         .card { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative; cursor: pointer; transition: transform 0.2s; display: flex; flex-direction: column; justify-content: space-between; min-height: 140px; }
         .card:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .card-body { flex-grow: 1; padding-right: 60px; }
         .card-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; }
-        
         .badge { position: absolute; top: 15px; right: 15px; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
         .badge.andamento { background: #FEF3C7; color: #D97706; }
         .badge.finalizado { background: #E5E7EB; color: #4B5563; }
-        
-        /* Botão de Excluir */
         .btn-delete { background: none; border: none; color: var(--danger); font-size: 14px; font-weight: bold; cursor: pointer; padding: 5px; border-radius: 4px; transition: background 0.2s; }
         .btn-delete:hover { background: #FEE2E2; }
-
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 500px; }
         .form-group { margin-bottom: 15px; }
@@ -81,7 +75,7 @@
         <div id="leitor" class="tab-content">
             <h2>Validar Presença</h2>
             <div style="text-align: center; margin-top: 20px;">
-                <button class="btn-submit" style="max-width: 200px;" onclick="startScanner()">Ler QR Code</button>
+                <button class="btn-submit" style="max-width: 200px;" onclick="startScanner()">Iniciar Câmera Traseira</button>
                 <div id="reader" style="margin-top:20px;"></div>
                 <h2 id="leitor-resultado" style="margin-top:20px; color: var(--success);"></h2>
             </div>
@@ -104,34 +98,45 @@
     </div>
 
     <div id="modalEvento" class="modal">
-    <div class="modal-content">
-        <h3 style="margin-bottom:15px;">Adicionar Novo Evento</h3>
-        <div class="form-group"> <label>Nome do Evento</label> <input type="text" id="evt-nome"> </div>
-        <div class="form-group"> <label>Imagem de Fundo do Evento (Upload de Arquivo)</label> <input type="file" id="evt-img-file" accept="image/*"> </div>
-        <div class="form-group"> <label>Link do Google Sheets (URL ou ID)</label> <input type="text" id="evt-sheets"> </div>
-        <div class="form-group"> 
-            <label>Mensagem Padrão do WhatsApp</label> 
-            <textarea id="evt-msg" rows="3" style="width:100%; padding:8px; border:1px solid #D1D5DB; border-radius:4px;" placeholder="Ex: Olá [NOME], segue seu voucher confirmado para o evento!"></textarea>
-            <small style="color:gray; font-size:11px;">Use <b>[NOME]</b> para o sistema trocar pelo nome do cliente automaticamente.</small>
+        <div class="modal-content">
+            <h3 style="margin-bottom:15px;">Adicionar Novo Evento</h3>
+            <div class="form-group"> <label>Nome do Evento</label> <input type="text" id="evt-nome"> </div>
+            <div class="form-group"> <label>Imagem de Fundo (Upload de Arquivo)</label> <input type="file" id="evt-img-file" accept="image/*"> </div>
+            <div class="form-group"> <label>Link do Google Sheets (URL ou ID)</label> <input type="text" id="evt-sheets"> </div>
+            <div class="form-group"> 
+                <label>Mensagem Padrão do WhatsApp</label> 
+                <textarea id="evt-msg" rows="3" style="width:100%; padding:8px; border:1px solid #D1D5DB; border-radius:4px;" placeholder="Ex: Olá [NOME], segue seu voucher confirmado!"></textarea>
+                <small style="color:gray; font-size:11px;">Use <b>[NOME]</b> para substituição automática.</small>
+            </div>
+            <div class="form-group">
+                <label>Status Inicial</label>
+                <select id="evt-status">
+                    <option value="em andamento">Em andamento</option>
+                    <option value="finalizado">Finalizado</option>
+                </select>
+            </div>
+            <button class="btn-submit" onclick="salvarEvento()">Salvar Evento</button>
+            <button class="btn-submit" style="background:#9CA3AF; margin-top:10px;" onclick="closeModal()">Cancelar</button>
         </div>
-        <div class="form-group">
-            <label>Status Inicial</label>
-            <select id="evt-status">
-                <option value="em andamento">Em andamento</option>
-                <option value="finalizado">Finalizado</option>
-            </select>
-        </div>
-        <button class="btn-submit" onclick="salvarEvento()">Salvar Evento</button>
-        <button class="btn-submit" style="background:#9CA3AF; margin-top:10px;" onclick="closeModal()">Cancelar</button>
     </div>
-</div>
 
     <canvas id="voucherCanvas"></canvas>
 
     <script>
+        // ⚠️ ATENÇÃO: COLE A URL DO SEU GOOGLE APPS SCRIPT ENTRE AS ASPAS ABAIXO!
+        const API_URL = "COLE_AQUI_A_URL_DO_PASSO_1_QUE_TERMINA_EM_EXEC";
+
         let eventos = JSON.parse(localStorage.getItem('eventos')) || [];
         let eventoAtual = null;
         let clientesCarregados = [];
+
+        async function chamarAPI(dados) {
+            const resposta = await fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify(dados)
+            });
+            return await resposta.json();
+        }
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -148,52 +153,35 @@
         function closeModal() { document.getElementById('modalEvento').style.display = 'none'; }
 
         function salvarEvento() {
-    const fileInput = document.getElementById('evt-img-file');
-    const file = fileInput.files[0];
-    
-    const nome = document.getElementById('evt-nome').value;
-    const sheets = document.getElementById('evt-sheets').value;
-    const status = document.getElementById('evt-status').value;
-    const mensagem = document.getElementById('evt-msg').value || "Olá [NOME]! Segue seu voucher confirmado.";
+            const fileInput = document.getElementById('evt-img-file');
+            const file = fileInput.files[0];
+            const nome = document.getElementById('evt-nome').value;
+            const sheets = document.getElementById('evt-sheets').value;
+            const status = document.getElementById('evt-status').value;
+            const mensagem = document.getElementById('evt-msg').value || "Olá [NOME]! Segue seu voucher.";
 
-    if (!nome || !sheets) {
-        alert("Por favor, preencha o nome do evento e o link da planilha.");
-        return;
-    }
+            if (!nome || !sheets) { alert("Preencha o nome e o link da planilha."); return; }
 
-    const estruturarNovoEvento = (imgData) => {
-        return {
-            id: Date.now(),
-            nome: nome,
-            imagem: imgData,
-            sheets: sheets,
-            status: status,
-            mensagem: mensagem // Salva a mensagem customizada
-        };
-    };
+            const estruturar = (imgData) => ({ id: Date.now(), nome, imagem: imgData, sheets, status, mensagem });
 
-    if (file) {
-        const reader = new FileReader();
-        reader.onloadend = function() {
-            eventos.push(estruturarNovoEvento(reader.result));
-            localStorage.setItem('eventos', JSON.stringify(eventos));
-            closeModal();
-            renderEventos();
-            fileInput.value = "";
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = function() {
+                    eventos.push(estruturar(reader.result));
+                    localStorage.setItem('eventos', JSON.stringify(eventos));
+                    closeModal(); renderEventos(); fileInput.value = "";
+                }
+                reader.readAsDataURL(file);
+            } else {
+                eventos.push(estruturar("azul_padrao"));
+                localStorage.setItem('eventos', JSON.stringify(eventos));
+                closeModal(); renderEventos();
+            }
         }
-        reader.readAsDataURL(file);
-    } else {
-        eventos.push(estruturarNovoEvento("azul_padrao"));
-        localStorage.setItem('eventos', JSON.stringify(eventos));
-        closeModal();
-        renderEventos();
-    }
-}
 
-        // NOVA FUNÇÃO: Permite excluir o evento do banco local
         function excluirEvento(id, event) {
-            event.stopPropagation(); // Impede que o clique abra a aba de vouchers
-            if(confirm("Tem certeza que deseja excluir este evento do sistema? A planilha do Google Sheets continuará intacta.")) {
+            event.stopPropagation();
+            if(confirm("Deseja excluir este evento do painel local?")) {
                 eventos = eventos.filter(e => e.id !== id);
                 localStorage.setItem('eventos', JSON.stringify(eventos));
                 renderEventos();
@@ -201,10 +189,8 @@
         }
 
         function renderEventos() {
-            const container = document.getElementById('lista-eventos');
-            container.innerHTML = '';
-            if(eventos.length === 0) { container.innerHTML = '<p class="loading">Nenhum evento cadastrado. Clique no "+" acima.</p>'; return; }
-            
+            const container = document.getElementById('lista-eventos'); container.innerHTML = '';
+            if(eventos.length === 0) { container.innerHTML = '<p class="loading">Nenhum evento. Clique no "+".</p>'; return; }
             eventos.forEach(evt => {
                 container.innerHTML += `
                     <div class="card" onclick="switchTab('voucher'); verClientesVoucher(${evt.id});">
@@ -213,68 +199,57 @@
                             <h3>${evt.nome}</h3>
                             <p style="font-size:12px; color:gray; margin-top:5px;">📋 Ver vouchers</p>
                         </div>
-                        <div class="card-actions">
-                            <span></span>
-                            <button class="btn-delete" onclick="excluirEvento(${evt.id}, event)">🗑️ Excluir</button>
-                        </div>
-                    </div>
-                `;
+                        <div class="card-actions"><span></span><button class="btn-delete" onclick="excluirEvento(${evt.id}, event)">🗑️ Excluir</button></div>
+                    </div>`;
             });
         }
 
         function renderVoucherEventos() {
-            const container = document.getElementById('voucher-eventos-grid');
-            container.innerHTML = '';
+            const container = document.getElementById('voucher-eventos-grid'); container.innerHTML = '';
             eventos.forEach(evt => {
                 container.innerHTML += `
                     <div class="card" onclick="verClientesVoucher(${evt.id})">
                         <span class="badge ${evt.status === 'em andamento' ? 'andamento' : 'finalizado'}">${evt.status}</span>
                         <h3>${evt.nome}</h3>
-                        <p style="font-size:13px; color:#4F46E5; margin-top:5px;">Ver Planilha de Clientes →</p>
-                    </div>
-                `;
+                    </div>`;
             });
         }
 
-        function verClientesVoucher(id) {
+        async function verClientesVoucher(id) {
             eventoAtual = eventos.find(e => e.id === id);
             document.getElementById('voucher-eventos-grid').style.display = 'none';
             document.getElementById('voucher-clientes-secao').style.display = 'block';
-            document.getElementById('voucher-evento-titulo').innerText = `Clientes de: ${eventoAtual.nome}`;
+            document.getElementById('voucher-evento-titulo').innerText = `Clientes: ${eventoAtual.nome}`;
             
-            const lista = document.getElementById('lista-clientes-voucher');
-            lista.innerHTML = '';
+            const lista = document.getElementById('lista-clientes-voucher'); lista.innerHTML = '';
             document.getElementById('loading-clientes').style.display = 'block';
 
-            google.script.run
-                .withSuccessHandler(function(clientes) {
-                    document.getElementById('loading-clientes').style.display = 'none';
-                    clientesCarregados = clientes.sort((a,b) => a.nome.localeCompare(b.nome));
-                    
-                    if(clientesCarregados.length === 0) { lista.innerHTML = '<p class="loading">Nenhum dado encontrado na planilha.</p>'; return; }
+            try {
+                const clientes = await chamarAPI({ acao: "buscarDados", urlPlanilha: eventoAtual.sheets });
+                document.getElementById('loading-clientes').style.display = 'none';
+                clientesCarregados = clientes.sort((a,b) => a.nome.localeCompare(b.nome));
 
-                    clientesCarregados.forEach((cli, index) => {
-                        let btnHtml = cli.status.toLowerCase() === "voucher criado" 
-                            ? `<button class="btn-print" onclick="renderizarEImprimir('${cli.nome}', '${cli.acompanhantes}', true)">Imprimir</button>` 
-                            : `<button class="btn-action" id="btn-gerar-${index}" onclick="gerarVoucher('${cli.nome}', '${cli.acompanhantes}', ${index})">Gerar Voucher</button>`;
-                        
-                        lista.innerHTML += `
-                            <div class="client-item">
-                                <div>
-                                    <strong>${cli.nome}</strong> <br>
-                                    <span style="font-size:12px; color:gray;">Tel: ${cli.telefone} | Acompanhantes: ${cli.acompanhantes}</span> <br>
-                                    <span id="status-label-${index}" style="font-size:11px; font-weight:bold; color:${cli.status ? '#10B981' : '#9CA3AF'}">${cli.status || 'Pendente'}</span>
-                                </div>
-                                <div id="actions-${index}">${btnHtml}</div>
+                if(clientesCarregados.length === 0) { lista.innerHTML = '<p class="loading">Nenhum dado encontrado.</p>'; return; }
+
+                clientesCarregados.forEach((cli, index) => {
+                    let btnHtml = cli.status.toLowerCase() === "voucher criado" 
+                        ? `<button class="btn-print" onclick="renderizarEImprimir('${cli.nome}', '${cli.acompanhantes}', true)">Imprimir</button>` 
+                        : `<button class="btn-action" id="btn-gerar-${index}" onclick="gerarVoucher('${cli.nome}', '${cli.acompanhantes}', ${index})">Gerar</button>`;
+                    
+                    lista.innerHTML += `
+                        <div class="client-item">
+                            <div>
+                                <strong>${cli.nome}</strong> <br>
+                                <span style="font-size:12px; color:gray;">Acom.: ${cli.acompanhantes}</span> <br>
+                                <span id="status-label-${index}" style="font-size:11px; font-weight:bold; color:${cli.status ? '#10B981' : '#9CA3AF'}">${cli.status || 'Pendente'}</span>
                             </div>
-                        `;
-                    });
-                })
-                .withFailureHandler(function(err) {
-                    document.getElementById('loading-clientes').style.display = 'none';
-                    alert(err.message);
-                })
-                .buscarDadosDaPlanilha(eventoAtual.sheets);
+                            <div id="actions-${index}">${btnHtml}</div>
+                        </div>`;
+                });
+            } catch (err) {
+                document.getElementById('loading-clientes').style.display = 'none';
+                alert("Erro ao carregar planilha: " + err.message);
+            }
         }
 
         function voltarEventosVoucher() {
@@ -283,261 +258,140 @@
         }
 
         function gerarVoucher(nome, acompanhantes, index) {
-    // Muda o texto do botão para sabermos que iniciou
-    const btn = document.getElementById(`btn-gerar-${index}`);
-    if (btn) btn.innerText = "Processando...";
-    
-    // Executa o gerador com um temporizador de segurança para evitar travamento eterno
-    try {
-        renderizarEImprimir(nome, acompanhantes, false, index);
-    } catch (err) {
-        alert("Erro crítico no navegador ao processar: " + err.message);
-        if (btn) btn.innerText = "Gerar Voucher";
-    }
-}
-
-function renderizarEImprimir(nome, acompanhantes, abrirDireto, index = null) {
-    const canvas = document.getElementById('voucherCanvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 1080;
-    canvas.height = 1920;
-
-    // Função interna isolada para desenhar o conteúdo
-    const prosseguirComDesenho = () => {
-        try {
-            desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index);
-        } catch(e) {
-            alert("Erro ao desenhar elementos do voucher: " + e.message);
-            restaurarBotao(index);
+            const btn = document.getElementById(`btn-gerar-${index}`);
+            if (btn) btn.innerText = "Processando...";
+            renderizarEImprimir(nome, acompanhantes, false, index);
         }
-    };
 
-    // SE TRATAR DE FUNDO PADRÃO OU SEM IMAGEM
-    if (!eventoAtual.imagem || eventoAtual.imagem === "azul_padrao") {
-        ctx.fillStyle = "#4F46E5"; 
-        ctx.fillRect(0, 0, 1080, 1920);
-        prosseguirComDesenho();
-        return;
-    }
+        function renderizarEImprimir(nome, acompanhantes, abrirDireto, index = null) {
+            const canvas = document.getElementById('voucherCanvas'); const ctx = canvas.getContext('2d');
+            canvas.width = 1080; canvas.height = 1920;
 
-    // SE TIVER IMAGEM CARREGADA
-    const img = new Image();
-    img.onload = function() {
-        try {
-            ctx.drawImage(img, 0, 0, 1080, 1920);
-            prosseguirComDesenho();
-        } catch (e) {
-            console.error(e);
-            // Se a imagem estourar a memória do Canvas, usa o fundo padrão para não travar
-            ctx.fillStyle = "#4F46E5";
-            ctx.fillRect(0, 0, 1080, 1920);
-            prosseguirComDesenho();
+            const prosseguir = () => { desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index); };
+
+            if (!eventoAtual.imagem || eventoAtual.imagem === "azul_padrao") {
+                ctx.fillStyle = "#4F46E5"; ctx.fillRect(0, 0, 1080, 1920); prosseguir(); return;
+            }
+
+            const img = new Image();
+            img.onload = function() { ctx.drawImage(img, 0, 0, 1080, 1920); prosseguir(); };
+            img.onerror = function() { ctx.fillStyle = "#4F46E5"; ctx.fillRect(0, 0, 1080, 1920); prosseguir(); };
+            img.src = eventoAtual.imagem;
         }
-    };
-    
-    img.onerror = function() {
-        console.warn("Imagem corrompida ou muito pesada. Usando fundo padrão.");
-        ctx.fillStyle = "#4F46E5";
-        ctx.fillRect(0, 0, 1080, 1920);
-        prosseguirComDesenho();
-    };
-    
-    img.src = eventoAtual.imagem;
-}
 
-function desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index) {
-    const stringQr = `VALIDO|${eventoAtual.sheets}|${nome}`;
-    
-    // 1. GERAR E DESENHAR O QR CODE NA POSIÇÃO ORIGINAL (METADE INFERIOR)
-    QRCode.toDataURL(stringQr, { width: 420, margin: 1 }, function (err, url) {
-        if (err) {
-            alert("Erro ao gerar o código QR técnico.");
-            restaurarBotao(index);
-            return;
-        }
-        
-        const qrImg = new Image();
-        qrImg.src = url;
-        qrImg.onload = function() {
-            // Desenha o QR Code exatamente onde estava antes (Y: 1150)
-            ctx.drawImage(qrImg, 330, 1150, 420, 420);
-            
-            // 2. DESENHAR O BLOCO DE INFORMAÇÕES NA ÁREA INFERIOR RESTANTE (ABAIXO DO QR CODE)
-            // O QR Code começa em 1150 e tem 420 de altura, terminando em 1570.
-            // Alocamos o bloco logo abaixo, em Y: 1590, aproveitando a base do voucher (que vai até 1920).
-            const blocoX = 80;
-            const blocoY = 1590; 
-            const blocoLargura = 920;
-            const blocoAltura = 270; // Ajustado para preencher a área restante com elegância
-
-            // Fundo do bloco de texto (Branco semi-transparente)
-            ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-            ctx.fillRect(blocoX, blocoY, blocoLargura, blocoAltura);
-
-            // Configuração do texto alinhado à esquerda dentro do bloco inferior
-            ctx.textAlign = "left";
-            ctx.fillStyle = "#000000";
-            
-            // Título: CONVITE INDIVIDUAL CONFIRMADO
-            ctx.font = "bold 38px Arial"; // Tamanho levemente reduzido para encaixar perfeitamente na base
-            ctx.fillText("CONVITE INDIVIDUAL CONFIRMADO", blocoX + 40, blocoY + 70);
-            
-            // Dados do Cliente
-            ctx.font = "36px Arial";
-            ctx.fillText(`Convidado: ${nome}`, blocoX + 40, blocoY + 140);
-            
-            // Dados dos Acompanhantes
-            ctx.fillText(`Acompanhantes: ${acompanhantes}`, blocoX + 40, blocoY + 210);
-            
-            // 3. EXPORTAR E SALVAR
-            try {
-                const dataUrl = canvas.toDataURL("image/png");
-                
-                if (abrirDireto) {
-                    abrirJanelaImpressao(nome, dataUrl);
-                } else {
-                    google.script.run
-                        .withSuccessHandler(function() {
+        function desenharTextosEQr(ctx, canvas, nome, acompanhantes, abrirDireto, index) {
+            const stringQr = `VALIDO|${eventoAtual.sheets}|${nome}`;
+            QRCode.toDataURL(stringQr, { width: 420, margin: 1 }, async function (err, url) {
+                if (err) { alert("Erro no QR Code."); return; }
+                const qrImg = new Image(); qrImg.src = url;
+                qrImg.onload = async function() {
+                    ctx.drawImage(qrImg, 330, 1150, 420, 420);
+                    
+                    const blocoX = 80; const blocoY = 1590;
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.95)"; ctx.fillRect(blocoX, blocoY, 920, 270);
+                    ctx.textAlign = "left"; ctx.fillStyle = "#000000";
+                    
+                    ctx.font = "bold 38px Arial"; ctx.fillText("CONVITE INDIVIDUAL CONFIRMADO", blocoX + 40, blocoY + 70);
+                    ctx.font = "36px Arial"; ctx.fillText(`Convidado: ${nome}`, blocoX + 40, blocoY + 140);
+                    ctx.fillText(`Acompanhantes: ${acompanhantes}`, blocoX + 40, blocoY + 210);
+                    
+                    const dataUrl = canvas.toDataURL("image/png");
+                    if (abrirDireto) { abrirJanelaImpressao(nome, dataUrl); } else {
+                        try {
+                            await chamarAPI({ acao: "atualizarStatus", urlPlanilha: eventoAtual.sheets, nomeCliente: nome, novoStatus: "voucher criado" });
                             document.getElementById(`status-label-${index}`).innerText = "voucher criado";
                             document.getElementById(`status-label-${index}`).style.color = "#10B981";
                             document.getElementById(`actions-${index}`).innerHTML = `<button class="btn-print" onclick="renderizarEImprimir('${nome}', '${acompanhantes}', true)">Imprimir</button>`;
                             abrirJanelaImpressao(nome, dataUrl);
-                        })
-                        .withFailureHandler(function(sheetsError) {
-                            alert("⚠️ Voucher gerado, mas erro ao salvar no Sheets: " + sheetsError.message);
+                        } catch(e) {
+                            alert("Voucher pronto, mas houve um erro ao salvar na planilha.");
                             abrirJanelaImpressao(nome, dataUrl);
-                            restaurarBotao(index);
-                        })
-                        .atualizarStatusNaPlanilha(eventoAtual.sheets, nome, "voucher criado");
-                }
-            } catch (canvasError) {
-                alert("O navegador bloqueou a exportação da imagem. Tente usar o fundo padrão ou uma imagem mais leve.");
-                restaurarBotao(index);
-            }
-        };
-    });
-}
-
-function restaurarBotao(index) {
-    if (index !== null) {
-        const btn = document.getElementById(`btn-gerar-${index}`);
-        if (btn) btn.innerText = "Gerar Voucher";
-    }
-}
+                        }
+                    }
+                };
+            });
+        }
 
         function abrirJanelaImpressao(nome, dataUrl) {
-    // Trata a mensagem personalizada trocando a tag [NOME] pelo nome real do cliente
-    let mensagemCustomizada = eventoAtual.mensagem || "Olá [NOME]! Segue seu voucher confirmado.";
-    mensagemCustomizada = mensagemCustomizada.replace("[NOME]", nome);
-    
-    const textoFormatadoUri = encodeURIComponent(mensagemCustomizada);
-    const win = window.open();
-    
-    win.document.write(`
-        <body style="margin:0; display:flex; flex-direction:column; align-items:center; background:#111827; color:white; font-family:sans-serif; padding:20px;">
-            <h2 style="margin-bottom:15px;">Voucher de ${nome}</h2>
-            <img src="${dataUrl}" style="max-width:95%; max-height:65vh; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.5);"/>
-            
-            <div style="margin-top:20px; background:#1F2937; padding:15px; border-radius:8px; width:90%; max-width:400px; box-sizing:border-box;">
-                <p style="font-size:12px; color:#9CA3AF; margin-bottom:5px;">Mensagem que será enviada:</p>
-                <p style="font-size:14px; font-style:italic;">"${mensagemCustomizada}"</p>
-            </div>
-
-            <div style="margin-top:25px; display:flex; flex-direction:column; gap:12px; width:90%; max-width:400px;">
-                <a href="${dataUrl}" download="Voucher_${nome.replace(/\\s+/g, '_')}.png" style="padding:15px; font-size:16px; font-weight:bold; background:#4F46E5; color:white; border:none; border-radius:6px; text-decoration:none; text-align:center; cursor:pointer;">⬇️ Salvar Imagem no Celular</a>
-                
-                <a href="https://api.whatsapp.com/send?text=${textoFormatadoUri}" target="_blank" style="padding:15px; font-size:16px; font-weight:bold; background:#10B981; color:white; text-decoration:none; border-radius:6px; text-align:center;">💬 Enviar Mensagem por WhatsApp</a>
-            </div>
-        </body>
-    `);
-}
-
-        // --- LEITOR QR CODE ATUALIZADO PARA CELULARES ---
-let html5QrcodeScanner = null;
-
-function startScanner() {
-    document.getElementById('leitor-resultado').innerText = "Iniciando câmera traseira...";
-    
-    if(html5QrcodeScanner) {
-        try {
-            html5QrcodeScanner.clear();
-        } catch(e) { console.log(e); }
-    }
-    
-    // Instancia o leitor focando especificamente na câmera traseira do celular (environment)
-    html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-        fps: 15, 
-        qrbox: 250,
-        rememberLastUsedCamera: true,
-        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
-    });
-    
-    html5QrcodeScanner.render((decodedText, decodedResult) => {
-        if(decodedText.startsWith("VALIDO")) {
-            const partes = decodedText.split("|");
-            const sheetId = partes[1];
-            const nomeCliente = partes[2];
-            const agora = new Date().toLocaleString('pt-BR');
-            const statusMsg = `Presença confirmada às: ${agora}`;
-            
-            document.getElementById('leitor-resultado').innerHTML = `⏳ Atualizando presença...`;
-            
-            google.script.run.withSuccessHandler(function() {
-                document.getElementById('leitor-resultado').innerHTML = `✅ Presença confirmada!<br><span style="font-size:16px; color:gray;">${nomeCliente} às ${agora}</span>`;
-                html5QrcodeScanner.clear();
-            }).atualizarStatusNaPlanilha(sheetId, nomeCliente, statusMsg);
-        } else {
-            document.getElementById('leitor-resultado').innerText = "❌ QR Code inválido para este evento.";
+            let msg = (eventoAtual.mensagem || "Olá [NOME]! Segue seu voucher.").replace("[NOME]", nome);
+            const win = window.open();
+            win.document.write(`
+                <body style="margin:0; display:flex; flex-direction:column; align-items:center; background:#111827; color:white; font-family:sans-serif; padding:20px;">
+                    <h2>Voucher de ${nome}</h2>
+                    <img src="${dataUrl}" style="max-width:95%; max-height:65vh; border-radius:8px;"/>
+                    <div style="margin-top:20px; background:#1F2937; padding:15px; border-radius:8px; width:90%; max-width:400px;">
+                        <p style="font-size:14px;">"${msg}"</p>
+                    </div>
+                    <div style="margin-top:25px; display:flex; flex-direction:column; gap:12px; width:90%; max-width:400px;">
+                        <a href="${dataUrl}" download="Voucher_${nome}.png" style="padding:15px; background:#4F46E5; color:white; text-decoration:none; text-align:center; font-weight:bold; border-radius:6px;">⬇️ Salvar Imagem no Celular</a>
+                        <a href="https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}" target="_blank" style="padding:15px; background:#10B981; color:white; text-decoration:none; text-align:center; font-weight:bold; border-radius:6px;">💬 Enviar via WhatsApp</a>
+                    </div>
+                </body>`);
         }
-    }, (error) => {
-        // Log silencioso de foco para não travar a tela enquanto procura o QR Code
-        console.log("Buscando QR Code..."); 
-    });
-}
+
+        // --- LEITOR AO VIVO (AGORA LIBERADO PELO GITHUB) ---
+        let html5QrcodeScanner = null;
+        function startScanner() {
+            document.getElementById('leitor-resultado').innerText = "Iniciando câmera...";
+            if(html5QrcodeScanner) html5QrcodeScanner.clear();
+            
+            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
+            html5QrcodeScanner.render(async (decodedText, decodedResult) => {
+                if(decodedText.startsWith("VALIDO")) {
+                    const partes = decodedText.split("|");
+                    const sheetId = partes[1]; const nomeCliente = partes[2];
+                    const agora = new Date().toLocaleString('pt-BR');
+                    
+                    document.getElementById('leitor-resultado').innerHTML = `⏳ Processando presença...`;
+                    html5QrcodeScanner.clear();
+
+                    try {
+                        await chamarAPI({ acao: "atualizarStatus", urlPlanilha: sheetId, nomeCliente: nomeCliente, novoStatus: `Presença confirmada às: ${agora}` });
+                        document.getElementById('leitor-resultado').innerHTML = `✅ Presença confirmada!<br>${nomeCliente} às ${agora}`;
+                    } catch(e) {
+                        alert("Erro ao validar: " + e.message);
+                    }
+                } else {
+                    document.getElementById('leitor-resultado').innerText = "❌ QR Code inválido.";
+                }
+            }, (error) => {});
+        }
 
         // --- RELATÓRIOS ---
         function renderRelatorioEventos() {
-            const container = document.getElementById('relatorio-eventos-grid');
-            container.innerHTML = '';
+            const container = document.getElementById('relatorio-eventos-grid'); container.innerHTML = '';
             eventos.forEach(evt => {
                 container.innerHTML += `
                     <div class="card" onclick="verRelatorioDetalhe(${evt.id})">
                         <span class="badge ${evt.status === 'em andamento' ? 'andamento' : 'finalizado'}">${evt.status}</span>
                         <h3>${evt.nome}</h3>
-                        <p style="font-size:13px; color:gray; margin-top:5px;">Ver métricas do evento →</p>
-                    </div>
-                `;
+                    </div>`;
             });
         }
 
-        function verRelatorioDetalhe(id) {
+        async function verRelatorioDetalhe(id) {
             eventoAtual = eventos.find(e => e.id === id);
             document.getElementById('relatorio-eventos-grid').style.display = 'none';
             document.getElementById('relatorio-detalhe').style.display = 'block';
-            document.getElementById('relatorio-evento-titulo').innerText = `Resumo de: ${eventoAtual.nome}`;
+            document.getElementById('relatorio-evento-titulo').innerText = `Resumo: ${eventoAtual.nome}`;
             document.getElementById('conteudo-relatorio').style.display = 'none';
             document.getElementById('loading-relatorio').style.display = 'block';
 
-            google.script.run
-                .withSuccessHandler(function(clientes) {
-                    document.getElementById('loading-relatorio').style.display = 'none';
-                    document.getElementById('conteudo-relatorio').style.display = 'block';
-                    
-                    const total = clientes.length;
-                    const confirmados = clientes.filter(c => c.status.toLowerCase().includes("presença confirmada")).length;
+            try {
+                const clientes = await chamarAPI({ acao: "buscarDados", urlPlanilha: eventoAtual.sheets });
+                document.getElementById('loading-relatorio').style.display = 'none';
+                document.getElementById('conteudo-relatorio').style.display = 'block';
+                
+                const total = clientes.length;
+                const confirmados = clientes.filter(c => c.status.toLowerCase().includes("presença confirmada")).length;
 
-                    document.getElementById('relatorio-qtd-clientes').innerText = `Quantidade total de Clientes: ${total}`;
-                    document.getElementById('relatorio-qtd-confirmados').innerText = `Presenças Confirmadas: ${confirmados}`;
-
-                    document.getElementById('btn-exportar').onclick = function() {
-                        if(eventoAtual.status !== 'finalizado') {
-                            alert("A exportação/impressão total só é liberada após o evento estar 'finalizado'. Altere o status dele na aba Eventos.");
-                            return;
-                        }
-                        window.print();
-                    }
-                })
-                .buscarDadosDaPlanilha(eventoAtual.sheets);
+                document.getElementById('relatorio-qtd-clientes').innerText = `Total de Clientes: ${total}`;
+                document.getElementById('relatorio-qtd-confirmados').innerText = `Confirmados: ${confirmados}`;
+                document.getElementById('btn-exportar').onclick = function() { window.print(); }
+            } catch(e) {
+                document.getElementById('loading-relatorio').style.display = 'none';
+                alert("Erro ao gerar relatório: " + e.message);
+            }
         }
 
         function voltarEventosRelatorio() {
